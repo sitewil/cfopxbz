@@ -213,6 +213,7 @@
             <th>CFOP</th>
             <th>IPI %</th>
             <th>ICMS-ST</th>
+            <th>Origem</th>
             <th id="acoesHeader" style="display:none;">Ações</th>
           </tr>
         </thead>
@@ -610,6 +611,12 @@ function renderTable(){
     const stCell = `<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;white-space:nowrap;cursor:${isAdmin?'pointer':'default'};">`
       + `<input type="checkbox" class="st-check" data-ncm="${row.ncm}" ${stChecked ? 'checked' : ''} ${isAdmin ? '' : 'disabled'}> ICMS-ST</label>`;
 
+    if(!row.origem) row.origem = 'nacional';
+    const origemCell = `<select class="origem-select" data-idx="${i}" style="font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-family:inherit;">`
+      + `<option value="nacional" ${row.origem === 'nacional' ? 'selected' : ''}>Nacional</option>`
+      + `<option value="importado" ${row.origem === 'importado' ? 'selected' : ''}>Importado</option>`
+      + `</select>`;
+
     const searchBlob = (row.ref + ' ' + row.desc + ' ' + row.ncm).toLowerCase();
     tr.dataset.search = searchBlob;
     tr.dataset.tipo = row.tipo;
@@ -625,6 +632,7 @@ function renderTable(){
       <td class="mono">${cfopFmt}</td>
       <td>${ipiCell}</td>
       <td>${stCell}</td>
+      <td>${origemCell}</td>
       <td>${acaoCell}</td>
     `;
     frag.appendChild(tr);
@@ -639,6 +647,15 @@ function renderTable(){
       ipiMap[ncm].st = e.target.checked;
       await saveIpiMap();
       renderTable(); // recalcula o CFOP de todas as linhas com esse NCM
+    });
+  });
+
+  els.tbody.querySelectorAll('.origem-select').forEach(sel => {
+    sel.addEventListener('change', async (e) => {
+      const idx = Number(e.target.dataset.idx);
+      if(!currentRows[idx]) return;
+      currentRows[idx].origem = e.target.value;
+      await saveProducts();
     });
   });
 
@@ -705,7 +722,7 @@ function escapeHtml(v){
 }
 
 function exportSheet(){
-  const header = ['Ref.', 'Descricao', 'CLASSIFICACAO_FISCAL', 'Tipo', 'CFOP', 'IPI (%)', 'ICMS-ST'];
+  const header = ['Ref.', 'Descricao', 'CLASSIFICACAO_FISCAL', 'Tipo', 'CFOP', 'IPI (%)', 'ICMS-ST', 'Origem'];
   const data = [header];
   currentRows.forEach(row => {
     const cfop = cfopFor(row.tipo, row.ncm);
@@ -723,11 +740,12 @@ function exportSheet(){
       row.tipo === 'industria' ? 'Indústria' : 'Revenda',
       cfopFmt,
       ipiVal,
-      st
+      st,
+      row.origem === 'importado' ? 'Importado' : 'Nacional'
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:10},{wch:45},{wch:16},{wch:12},{wch:10},{wch:10},{wch:9}];
+  ws['!cols'] = [{wch:10},{wch:45},{wch:16},{wch:12},{wch:10},{wch:10},{wch:9},{wch:11}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'CFOP_IPI');
   const stamp = new Date().toISOString().slice(0,10);

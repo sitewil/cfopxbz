@@ -192,8 +192,152 @@
     <div id="jsonStatus" class="src" style="margin-top:8px;"></div>
   </div>
 
+  <div class="panel" id="bulkOrigemPanel" style="display:none;">
+    <h2>4. Marcar Origem em massa</h2>
+    <div class="note" style="margin-bottom:12px;">
+      Cole abaixo as referências (uma por linha, ou separadas por vírgula/espaço) que devem ficar como <b>Nacional</b>. Ao aplicar, todas as demais referências já carregadas no sistema são marcadas automaticamente como <b>Importado</b>.
+    </div>
+    <textarea id="bulkOrigemInput" rows="8" style="width:100%;font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line);border-radius:6px;resize:vertical;">1099
+1097
+1098
+13281
+13592
+13223
+8110
+1096
+13222
+1093
+1094
+1091C
+14007
+1095
+14719
+1091L
+1091T
+15303
+15296
+15295
+15294
+15293
+15292
+15302
+15307
+15298
+15324
+15299
+15327
+15344
+15320
+15297
+15333
+15386
+7645
+14429P
+14728
+14092N
+14092SN
+15144
+14429S
+13804N
+13803N
+14294
+14336G
+14585
+15066
+13803B
+15089
+15141
+12513
+12514N
+13708
+14491
+14751
+14752
+14753
+12595N
+14836
+12514SN
+12513SN
+14870
+14918
+14919
+14926
+14950P
+14950G
+14974
+15091
+15143
+15113
+15231
+15310
+15370
+15371
+15373
+9072
+13380
+14030
+14415
+14498
+14739
+14873
+14877
+14875
+14872
+14874
+14941L
+14941
+15022
+15246
+15267
+15252
+15272
+15317
+15323
+15322
+14508
+14499
+14894
+15209
+15304
+13761
+13450
+13618
+13617
+15246L
+15446
+15019
+15021
+15020
+15240
+15242
+15241
+15245
+15239
+TAMPA15245
+15240A
+15021TAMP
+13630
+14679L
+14679T
+15040
+1087L
+KIT15040
+1092
+14679C
+14679C*CP*
+14679L*CP*
+14679T*CP*
+6161T
+14801
+15070</textarea>
+    <div class="actions">
+      <button class="btn-primary" id="bulkOrigemBtn">Aplicar: listadas = Nacional, restante = Importado</button>
+    </div>
+    <div id="bulkOrigemStatus" class="src" style="margin-top:8px;"></div>
+  </div>
+
   <div class="panel" id="tablePanel" style="display:none;">
-    <h2>4. Resultado — confira e ajuste o IPI quando necessário</h2>
+    <h2>5. Resultado — confira e ajuste o IPI quando necessário</h2>
     <div id="warnBox"></div>
     <div class="search-bar">
       <input type="text" id="searchInput" placeholder="Buscar por Ref., descrição ou NCM...">
@@ -262,6 +406,10 @@ const els = {
   importJsonInput: document.getElementById('importJsonInput'),
   jsonStatus: document.getElementById('jsonStatus'),
   adminToggleBtn: document.getElementById('adminToggleBtn'),
+  bulkOrigemPanel: document.getElementById('bulkOrigemPanel'),
+  bulkOrigemInput: document.getElementById('bulkOrigemInput'),
+  bulkOrigemBtn: document.getElementById('bulkOrigemBtn'),
+  bulkOrigemStatus: document.getElementById('bulkOrigemStatus'),
 };
 
 function ufMode(){
@@ -293,6 +441,7 @@ function applyAdminMode(){
   els.drop.style.pointerEvents = isAdmin ? 'auto' : 'none';
   els.clearBtn.style.display = isAdmin ? 'inline-block' : 'none';
   els.dedupeBtn.style.display = isAdmin ? 'inline-block' : 'none';
+  els.bulkOrigemPanel.style.display = isAdmin ? 'block' : 'none';
   els.importJsonTrigger.style.display = isAdmin ? 'inline-block' : 'none';
   document.querySelectorAll('input.ipi-input').forEach(inp => inp.disabled = !isAdmin);
 
@@ -814,6 +963,43 @@ els.dedupeBtn.addEventListener('click', async () => {
   els.rowCount.textContent = currentRows.length + ' itens carregados';
   await saveProducts();
   alert(`${removed} referência(s) duplicada(s) removida(s) com sucesso.`);
+});
+
+els.bulkOrigemBtn.addEventListener('click', async () => {
+  const raw = els.bulkOrigemInput.value || '';
+  const nacionalSet = new Set(
+    raw.split(/[\n,;]+/)
+      .map(s => s.trim().toUpperCase())
+      .filter(s => s.length)
+  );
+
+  if(!nacionalSet.size){
+    alert('Cole ao menos uma referência na caixa de texto antes de aplicar.');
+    return;
+  }
+
+  let countNacional = 0, countImportado = 0, notFound = 0;
+  const foundRefs = new Set();
+  currentRows.forEach(row => {
+    const key = String(row.ref).trim().toUpperCase();
+    if(nacionalSet.has(key)){
+      row.origem = 'nacional';
+      countNacional++;
+      foundRefs.add(key);
+    } else {
+      row.origem = 'importado';
+      countImportado++;
+    }
+  });
+  notFound = [...nacionalSet].filter(r => !foundRefs.has(r)).length;
+
+  const ok = confirm(`Isso vai marcar ${countNacional} referência(s) como Nacional e ${countImportado} como Importado (para todo mundo). Confirma?`);
+  if(!ok) return;
+
+  renderTable();
+  await saveProducts();
+  els.bulkOrigemStatus.textContent = `Aplicado: ${countNacional} marcada(s) como Nacional, ${countImportado} como Importado.`
+    + (notFound ? ` ${notFound} referência(s) da lista não foram encontradas no sistema.` : '');
 });
 
 function downloadJson(obj, filename){

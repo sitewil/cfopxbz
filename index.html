@@ -436,7 +436,6 @@ document.querySelectorAll('input[name="uf"]').forEach(r=>r.addEventListener('cha
 updatePreview();
 
 function applyAdminMode(){
-  document.querySelectorAll('input[name="uf"]').forEach(r => r.disabled = !isAdmin);
   els.drop.style.opacity = isAdmin ? '1' : '.5';
   els.drop.style.pointerEvents = isAdmin ? 'auto' : 'none';
   els.clearBtn.style.display = isAdmin ? 'inline-block' : 'none';
@@ -444,6 +443,7 @@ function applyAdminMode(){
   els.bulkOrigemPanel.style.display = isAdmin ? 'block' : 'none';
   els.importJsonTrigger.style.display = isAdmin ? 'inline-block' : 'none';
   document.querySelectorAll('input.ipi-input').forEach(inp => inp.disabled = !isAdmin);
+  document.querySelectorAll('select.origem-select').forEach(sel => sel.disabled = !isAdmin);
 
   els.adminToggleBtn.textContent = isAdmin ? '🔓 Modo admin (clique para sair)' : '🔒 Modo visualização';
   els.adminToggleBtn.style.background = isAdmin ? 'var(--industria-bg)' : '';
@@ -761,7 +761,7 @@ function renderTable(){
       + `<input type="checkbox" class="st-check" data-ncm="${row.ncm}" ${stChecked ? 'checked' : ''} ${isAdmin ? '' : 'disabled'}> ICMS-ST</label>`;
 
     if(!row.origem) row.origem = 'nacional';
-    const origemCell = `<select class="origem-select" data-idx="${i}" style="font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-family:inherit;">`
+    const origemCell = `<select class="origem-select" data-idx="${i}" ${isAdmin ? '' : 'disabled'} style="font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-family:inherit;">`
       + `<option value="nacional" ${row.origem === 'nacional' ? 'selected' : ''}>Nacional</option>`
       + `<option value="importado" ${row.origem === 'importado' ? 'selected' : ''}>Importado</option>`
       + `</select>`;

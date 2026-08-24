@@ -174,6 +174,8 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="btn-ghost" id="adminToggleBtn" style="font-size:11.5px;padding:6px 12px;">🔒 Modo visualização</button>
+      <button class="btn-primary" id="manualSaveBtn" style="font-size:11.5px;padding:6px 14px;">💾 Salvar agora</button>
+      <span id="saveStatus" style="font-size:11.5px;color:#cfe3f4;white-space:nowrap;"></span>
       <div id="rowCount" class="badge-count">nenhuma planilha carregada</div>
     </div>
   </header>
@@ -442,6 +444,8 @@ const els = {
   bulkOrigemInput: document.getElementById('bulkOrigemInput'),
   bulkOrigemBtn: document.getElementById('bulkOrigemBtn'),
   bulkOrigemStatus: document.getElementById('bulkOrigemStatus'),
+  manualSaveBtn: document.getElementById('manualSaveBtn'),
+  saveStatus: document.getElementById('saveStatus'),
 };
 
 function ufMode(){
@@ -513,6 +517,25 @@ applyAdminMode();
 const DB_URL = "https://cfopxbz-default-rtdb.firebaseio.com";
 const DB_CONFIGURED = DB_URL && !DB_URL.includes('COLE_AQUI');
 
+function setSaveStatus(state, detail){
+  const el = els.saveStatus;
+  if(!el) return;
+  const time = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  if(state === 'saving'){
+    el.textContent = '⏳ Salvando...';
+    el.style.color = '#cfe3f4';
+  } else if(state === 'ok'){
+    el.textContent = `✅ Salvo às ${time}`;
+    el.style.color = '#bff0d8';
+  } else if(state === 'error'){
+    el.textContent = '❌ Falha ao salvar' + (detail ? ' — ' + detail : '');
+    el.style.color = '#ffd3d3';
+  } else if(state === 'unconfigured'){
+    el.textContent = '⚠️ Banco não configurado';
+    el.style.color = '#ffe9b3';
+  }
+}
+
 function updateDbStatus(ok, detail){
   const el = document.getElementById('dbBanner');
   if(!DB_CONFIGURED){
@@ -565,11 +588,14 @@ async function loadIpiMap(){
   updateDbStatus(ok, detail);
 }
 
-async function saveIpiMap(){
+async function saveIpiMap(opts){
+  const silent = !!(opts && opts.silent);
   if(!DB_CONFIGURED){
-    alert('Banco compartilhado ainda não configurado — os ajustes de IPI não serão salvos para outras pessoas. Veja o aviso no topo da página.');
-    return;
+    setSaveStatus('unconfigured');
+    if(!silent) alert('Banco compartilhado ainda não configurado — os ajustes de IPI não serão salvos para outras pessoas. Veja o aviso no topo da página.');
+    return false;
   }
+  setSaveStatus('saving');
   try{
     const resp = await fetch(`${DB_URL}/ipi_mapping.json`, {
       method:'PUT',
@@ -578,10 +604,14 @@ async function saveIpiMap(){
     });
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     updateDbStatus(true);
+    setSaveStatus('ok');
+    return true;
   }catch(e){
     console.error('Falha ao salvar mapeamento de IPI', e);
     updateDbStatus(false, e.message);
-    alert('Não foi possível salvar no banco compartilhado. Confira a Database URL e as regras do Firebase.\n\nDetalhe: ' + e.message);
+    setSaveStatus('error', e.message);
+    if(!silent) alert('Não foi possível salvar no banco compartilhado. Confira a Database URL e as regras do Firebase.\n\nDetalhe: ' + e.message);
+    return false;
   }
 }
 
@@ -714,8 +744,13 @@ function handleFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-async function saveProducts(){
-  if(!DB_CONFIGURED) return;
+async function saveProducts(opts){
+  const silent = !!(opts && opts.silent);
+  if(!DB_CONFIGURED){
+    setSaveStatus('unconfigured');
+    return false;
+  }
+  setSaveStatus('saving');
   try{
     const resp = await fetch(`${DB_URL}/products.json`, {
       method:'PUT',
@@ -723,9 +758,13 @@ async function saveProducts(){
       body: JSON.stringify({ rows: currentRows, updatedAt: new Date().toISOString() })
     });
     if(!resp.ok) throw new Error('HTTP '+resp.status);
+    setSaveStatus('ok');
+    return true;
   }catch(e){
     console.error('Falha ao salvar planilha compartilhada', e);
-    alert('A planilha foi processada, mas não consegui salvá-la no banco compartilhado (os dados vão sumir ao atualizar a página). Detalhe: ' + e.message);
+    setSaveStatus('error', e.message);
+    if(!silent) alert('A planilha foi processada, mas não consegui salvá-la no banco compartilhado (os dados vão sumir ao atualizar a página). Detalhe: ' + e.message);
+    return false;
   }
 }
 
@@ -1085,6 +1124,26 @@ els.importJsonInput.addEventListener('change', async (e) => {
     console.error(err);
   }
   els.importJsonInput.value = '';
+});
+
+els.manualSaveBtn.addEventListener('click', async () => {
+  els.manualSaveBtn.disabled = true;
+  const originalText = els.manualSaveBtn.textContent;
+  els.manualSaveBtn.textContent = '💾 Salvando...';
+
+  const okProducts = await saveProducts({silent:true});
+  const okIpi = await saveIpiMap({silent:true});
+
+  els.manualSaveBtn.disabled = false;
+  els.manualSaveBtn.textContent = originalText;
+
+  if(!DB_CONFIGURED){
+    alert('Banco compartilhado ainda não configurado — configure a constante DB_URL no código antes de salvar (veja o aviso no topo da página).');
+  } else if(okProducts && okIpi){
+    setSaveStatus('ok');
+  } else {
+    alert('Não foi possível salvar tudo no banco compartilhado. Veja o status ao lado do botão e use "Testar conexão" para diagnosticar o problema (regras do Firebase, Database URL, ou conexão).');
+  }
 });
 
 document.getElementById('testDbBtn').addEventListener('click', testDbConnection);
